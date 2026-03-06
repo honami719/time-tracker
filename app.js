@@ -1,13 +1,13 @@
 /**
  * Time Tracker - Main Application Logic
- * Uses LocalStorage for data persistence
+ * Syncs with Google Sheets via Google Apps Script (GAS)
  */
 
-// State Management
+// State Management (in-memory cache)
 const STATE = {
-    clients: JSON.parse(localStorage.getItem('tt_clients')) || [],
-    tasks: JSON.parse(localStorage.getItem('tt_tasks')) || [],
-    logs: JSON.parse(localStorage.getItem('tt_logs')) || [],
+    clients: [],
+    tasks: [],
+    logs: [],
 };
 
 // Backend Integration (Google Apps Script)
@@ -19,11 +19,6 @@ const CHART_COLORS = [
     '#9fb399', '#f2d4bd', '#a8c6db', '#e8dfb7'
 ];
 
-// Utility: Save to LocalStorage
-const saveData = (key, data) => {
-    localStorage.setItem(`tt_${key}`, JSON.stringify(data));
-};
-
 // Utility: Generate Unique ID
 const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -31,11 +26,12 @@ const generateId = () => {
 
 // Utility: Format time (minutes to H:MM)
 const formatDuration = (minutes) => {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    if (h === 0) return `${m}m`;
-    if (m === 0) return `${h}h`;
-    return `${h}h ${m}m`;
+    const m = parseInt(minutes, 10);
+    const h = Math.floor(m / 60);
+    const rem = m % 60;
+    if (h === 0) return `${rem}m`;
+    if (rem === 0) return `${h}h`;
+    return `${h}h ${rem}m`;
 };
 
 // Utility: Calculate minutes between two times (HH:MM)
@@ -47,7 +43,6 @@ const calculateMinutes = (start, end) => {
     let startTotal = startH * 60 + startM;
     let endTotal = endH * 60 + endM;
 
-    // Handle overnight (e.g., 23:00 to 01:00)
     if (endTotal < startTotal) {
         endTotal += 24 * 60;
     }
@@ -62,6 +57,87 @@ const getToday = () => {
 };
 
 // ==========================================
+// GAS API Calls
+// ==========================================
+
+// GETリクエスト: 全データをスプレッドシートから読み込む
+const gasGet = async () => {
+    const response = await fetch(`${GAS_URL}?t=${Date.now()}`);
+    const data = await response.json();
+    if (data.status !== 'success') throw new Error(data.message);
+    return data;
+};
+
+// POSTリクエスト: データの追加・削除
+const gasPost = async (action, payload) => {
+    await fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ...payload })
+    });
+};
+
+// ローディング表示
+const showLoading = (msg = '読み込み中...') => {
+    let el = document.getElementById('global-loading');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'global-loading';
+        el.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0;
+            background: rgba(139, 119, 100, 0.9);
+            color: white; text-align: center;
+            padding: 10px; z-index: 9999;
+            font-size: 14px; letter-spacing: 0.5px;
+        `;
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = 'block';
+};
+
+const hideLoading = () => {
+    const el = document.getElementById('global-loading');
+    if (el) el.style.display = 'none';
+};
+
+// ==========================================
+// 初回データロード (GASから全データ取得)
+// ==========================================
+const loadAllData = async () => {
+    showLoading('スプレッドシートからデータを読み込み中...');
+    try {
+        const data = await gasGet();
+        STATE.clients = data.clients || [];
+        STATE.tasks = data.tasks || [];
+        STATE.logs = (data.logs || []).map(log => ({
+            ...log,
+            duration: parseInt(log.duration, 10) || 0
+        }));
+
+        // ソート
+        STATE.logs.sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return (a.start || '').localeCompare(b.start || '');
+        });
+
+        // 全UIを更新
+        renderClients();
+        renderTasks();
+        renderLogs();
+        updateTrackerDropdowns();
+        updateDashboard();
+
+    } catch (err) {
+        console.error('データ読み込みエラー:', err);
+        alert('データの読み込みに失敗しました。ページを再読み込みしてください。\n' + err.message);
+    } finally {
+        hideLoading();
+    }
+};
+
+// ==========================================
 // Navigation Logic
 // ==========================================
 const initNavigation = () => {
@@ -70,16 +146,13 @@ const initNavigation = () => {
 
     navItems.forEach(item => {
         item.addEventListener('click', () => {
-            // Update active nav
             navItems.forEach(nav => nav.classList.remove('active'));
             item.classList.add('active');
 
-            // Show active page
             const pageId = item.getAttribute('data-page');
             pages.forEach(page => page.classList.remove('active'));
             document.getElementById(pageId).classList.add('active');
 
-            // Trigger updates based on page
             if (pageId === 'dashboard') {
                 updateDashboard();
             } else if (pageId === 'tracker') {
@@ -96,11 +169,12 @@ const initNavigation = () => {
 const initClients = () => {
     const form = document.getElementById('client-form');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const nameInput = document.getElementById('client-name');
         const memoInput = document.getElementById('client-memo');
+        const btn = form.querySelector('button[type="submit"]');
 
         const newClient = {
             id: generateId(),
@@ -110,13 +184,21 @@ const initClients = () => {
         };
 
         STATE.clients.push(newClient);
-        saveData('clients', STATE.clients);
-
-        // Reset form
         nameInput.value = '';
         memoInput.value = '';
-
         renderClients();
+
+        // GASへ保存
+        btn.textContent = '保存中...';
+        btn.disabled = true;
+        try {
+            await gasPost('addClient', { data: newClient });
+        } catch (err) {
+            console.error('クライアント保存エラー:', err);
+        } finally {
+            btn.textContent = '登録する';
+            btn.disabled = false;
+        }
     });
 
     renderClients();
@@ -154,11 +236,15 @@ const renderClients = () => {
     lucide.createIcons();
 };
 
-window.deleteClient = (id) => {
-    if (confirm('このクライアントを削除しますか？\n※関連する作業ログは削除されませんが、クライアント名が表示されなくなります。')) {
+window.deleteClient = async (id) => {
+    if (confirm('このクライアントを削除しますか？\n※関連する作業ログのクライアント名が表示されなくなります。')) {
         STATE.clients = STATE.clients.filter(c => c.id !== id);
-        saveData('clients', STATE.clients);
         renderClients();
+        try {
+            await gasPost('deleteClient', { id });
+        } catch (err) {
+            console.error('クライアント削除エラー:', err);
+        }
     }
 };
 
@@ -168,12 +254,13 @@ window.deleteClient = (id) => {
 const initTasks = () => {
     const form = document.getElementById('task-form');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const nameInput = document.getElementById('task-name');
         const categoryInput = document.getElementById('task-category');
         const memoInput = document.getElementById('task-memo');
+        const btn = form.querySelector('button[type="submit"]');
 
         const newTask = {
             id: generateId(),
@@ -184,14 +271,22 @@ const initTasks = () => {
         };
 
         STATE.tasks.push(newTask);
-        saveData('tasks', STATE.tasks);
-
-        // Reset form
         nameInput.value = '';
         categoryInput.value = '';
         memoInput.value = '';
-
         renderTasks();
+
+        // GASへ保存
+        btn.textContent = '保存中...';
+        btn.disabled = true;
+        try {
+            await gasPost('addTask', { data: newTask });
+        } catch (err) {
+            console.error('タスク保存エラー:', err);
+        } finally {
+            btn.textContent = '登録する';
+            btn.disabled = false;
+        }
     });
 
     renderTasks();
@@ -230,11 +325,15 @@ const renderTasks = () => {
     lucide.createIcons();
 };
 
-window.deleteTask = (id) => {
-    if (confirm('このタスクを削除しますか？\n※関連する作業ログは削除されませんが、タスク名が表示されなくなります。')) {
+window.deleteTask = async (id) => {
+    if (confirm('このタスクを削除しますか？\n※関連する作業ログのタスク名が表示されなくなります。')) {
         STATE.tasks = STATE.tasks.filter(t => t.id !== id);
-        saveData('tasks', STATE.tasks);
         renderTasks();
+        try {
+            await gasPost('deleteTask', { id });
+        } catch (err) {
+            console.error('タスク削除エラー:', err);
+        }
     }
 };
 
@@ -249,12 +348,10 @@ const initTracker = () => {
     const durationInput = document.getElementById('log-duration');
     const form = document.getElementById('log-form');
 
-    // Set default dates
     const today = getToday();
     dateInput.value = today;
     filterInput.value = today;
 
-    // Auto calculate duration
     const updateDuration = () => {
         if (startInput.value && endInput.value) {
             const minutes = calculateMinutes(startInput.value, endInput.value);
@@ -267,25 +364,21 @@ const initTracker = () => {
     startInput.addEventListener('change', updateDuration);
     endInput.addEventListener('change', updateDuration);
 
-    // Filter change
     filterInput.addEventListener('change', () => {
         dateInput.value = filterInput.value;
         renderLogs();
     });
 
-    // Submit Log
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const button = e.submitter || form.querySelector('button[type="submit"]');
-
         const date = dateInput.value;
         const clientId = document.getElementById('log-client').value;
         const taskId = document.getElementById('log-task').value;
         const start = startInput.value;
         const end = endInput.value;
         const memo = document.getElementById('log-memo').value.trim();
-
         const minutes = calculateMinutes(start, end);
 
         if (minutes <= 0) {
@@ -306,53 +399,30 @@ const initTracker = () => {
         };
 
         STATE.logs.push(newLog);
-
-        // Sort logs by date and start time
         STATE.logs.sort((a, b) => {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             return a.start.localeCompare(b.start);
         });
 
-        saveData('logs', STATE.logs);
-
-        // --- [NEW] Send Data to Google Sheets via GAS ---
-        const clientObj = STATE.clients.find(c => c.id === clientId);
-        const taskObj = STATE.tasks.find(t => t.id === taskId);
-        const submitBtn = button; // Reference from event
-
-        // Simple visual feedback
-        const originalText = submitBtn.textContent;
-        submitBtn.textContent = '送信中...';
-        submitBtn.disabled = true;
-
-        fetch(GAS_URL, {
-            method: 'POST',
-            mode: 'no-cors', // Ignore CORS response blocks (Gas often blocks reading the response)
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                log: newLog,
-                clientName: clientObj ? clientObj.name : 'Unknown',
-                taskName: taskObj ? taskObj.name : 'Unknown'
-            })
-        }).then(() => {
-            console.log('Successfully sent to Google Sheets');
-        }).catch(err => {
-            console.error('Failed to send to Google Sheets:', err);
-        }).finally(() => {
-            submitBtn.textContent = originalText;
-            submitBtn.disabled = false;
-        });
-        // ------------------------------------------------
-
-        // Reset specific fields but keep date, client, task (for quick entry)
-        startInput.value = end; // Next start is previous end
+        startInput.value = end;
         endInput.value = '';
         durationInput.value = '';
         document.getElementById('log-memo').value = '';
 
         renderLogs();
+
+        // GASへ保存
+        button.textContent = '送信中...';
+        button.disabled = true;
+        try {
+            await gasPost('addLog', { data: newLog });
+            console.log('Successfully sent to Google Sheets');
+        } catch (err) {
+            console.error('ログ保存エラー:', err);
+        } finally {
+            button.textContent = '追加する';
+            button.disabled = false;
+        }
     });
 
     updateTrackerDropdowns();
@@ -363,11 +433,9 @@ const updateTrackerDropdowns = () => {
     const clientSelect = document.getElementById('log-client');
     const taskSelect = document.getElementById('log-task');
 
-    // Save current values
     const currentClient = clientSelect.value;
     const currentTask = taskSelect.value;
 
-    // Rebuild Clients
     clientSelect.innerHTML = '<option value="" disabled selected>選択してください</option>';
     STATE.clients.forEach(c => {
         const opt = document.createElement('option');
@@ -376,7 +444,6 @@ const updateTrackerDropdowns = () => {
         clientSelect.appendChild(opt);
     });
 
-    // Rebuild Tasks
     taskSelect.innerHTML = '<option value="" disabled selected>選択してください</option>';
     STATE.tasks.forEach(t => {
         const opt = document.createElement('option');
@@ -385,7 +452,6 @@ const updateTrackerDropdowns = () => {
         taskSelect.appendChild(opt);
     });
 
-    // Restore values if still exist
     if (STATE.clients.some(c => c.id === currentClient)) clientSelect.value = currentClient;
     if (STATE.tasks.some(t => t.id === currentTask)) taskSelect.value = currentTask;
 };
@@ -413,7 +479,9 @@ const renderLogs = () => {
         const task = STATE.tasks.find(t => t.id === log.taskId);
 
         const clientName = client ? client.name : '<span class="text-muted">不明/削除済み</span>';
-        const taskContent = task ? `<strong>${task.name}</strong> <span class="badge">${task.category}</span>` : '<span class="text-muted">不明/削除済み</span>';
+        const taskContent = task
+            ? `<strong>${task.name}</strong> <span class="badge">${task.category}</span>`
+            : '<span class="text-muted">不明/削除済み</span>';
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -434,11 +502,15 @@ const renderLogs = () => {
     lucide.createIcons();
 };
 
-window.deleteLog = (id) => {
+window.deleteLog = async (id) => {
     if (confirm('このログを削除しますか？')) {
         STATE.logs = STATE.logs.filter(l => l.id !== id);
-        saveData('logs', STATE.logs);
         renderLogs();
+        try {
+            await gasPost('deleteLog', { id });
+        } catch (err) {
+            console.error('ログ削除エラー:', err);
+        }
     }
 };
 
@@ -448,7 +520,6 @@ window.deleteLog = (id) => {
 let charts = {};
 
 const initDashboard = () => {
-    // Configure Chart.js defaults for light theme glassmorphism
     Chart.defaults.color = '#8c8a86';
     Chart.defaults.font.family = "'Inter', sans-serif";
     Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(255, 255, 255, 0.9)';
@@ -466,35 +537,30 @@ const updateDashboard = () => {
     const today = new Date();
     const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
-    // 1. Calculate Total Month Time
     const monthLogs = STATE.logs.filter(log => log.date.startsWith(currentMonth));
     const totalMonthMinutes = monthLogs.reduce((acc, log) => acc + log.duration, 0);
     document.getElementById('month-total-time').textContent = formatDuration(totalMonthMinutes);
 
-    // Destroy existing charts
     if (charts.daily) charts.daily.destroy();
     if (charts.client) charts.client.destroy();
     if (charts.task) charts.task.destroy();
 
-    // If no data, show empty state or just empty charts
     if (STATE.logs.length === 0) return;
 
-    // 2. Prepare Daily Data (Last 7 days)
+    // Daily Data
     const dailyData = {};
     for (let i = 6; i >= 0; i--) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
         const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const shortDate = `${d.getMonth() + 1}/${d.getDate()}`;
-
         const dayTotal = STATE.logs
             .filter(log => log.date === dateStr)
             .reduce((acc, log) => acc + log.duration, 0);
-
-        dailyData[shortDate] = (dayTotal / 60).toFixed(1); // Hours
+        dailyData[shortDate] = (dayTotal / 60).toFixed(1);
     }
 
-    // 3. Prepare Client Data
+    // Client Data
     const clientData = {};
     STATE.logs.forEach(log => {
         const client = STATE.clients.find(c => c.id === log.clientId);
@@ -502,7 +568,7 @@ const updateDashboard = () => {
         clientData[name] = (clientData[name] || 0) + log.duration;
     });
 
-    // 4. Prepare Task Data
+    // Task Data
     const taskData = {};
     STATE.logs.forEach(log => {
         const task = STATE.tasks.find(t => t.id === log.taskId);
@@ -510,7 +576,7 @@ const updateDashboard = () => {
         taskData[name] = (taskData[name] || 0) + log.duration;
     });
 
-    // Render Daily Chart (Bar)
+    // Daily Chart
     const ctxDaily = document.getElementById('dailyChart').getContext('2d');
     charts.daily = new Chart(ctxDaily, {
         type: 'bar',
@@ -519,7 +585,7 @@ const updateDashboard = () => {
             datasets: [{
                 label: '作業時間 (時間)',
                 data: Object.values(dailyData),
-                backgroundColor: 'rgba(55, 120, 185, 0.8)', // Distinct Navy color
+                backgroundColor: 'rgba(55, 120, 185, 0.8)',
                 borderColor: 'rgba(55, 120, 185, 1)',
                 borderWidth: 1,
                 borderRadius: 4
@@ -529,21 +595,14 @@ const updateDashboard = () => {
             responsive: true,
             maintainAspectRatio: false,
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.05)' }
-                },
-                x: {
-                    grid: { display: false }
-                }
+                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
+                x: { grid: { display: false } }
             },
-            plugins: {
-                legend: { display: false }
-            }
+            plugins: { legend: { display: false } }
         }
     });
 
-    // Render Client Chart (Doughnut)
+    // Client Chart
     const ctxClient = document.getElementById('clientChart').getContext('2d');
     charts.client = new Chart(ctxClient, {
         type: 'doughnut',
@@ -561,15 +620,12 @@ const updateDashboard = () => {
             maintainAspectRatio: false,
             cutout: '70%',
             plugins: {
-                legend: {
-                    position: 'right',
-                    labels: { color: '#4a4a4a', padding: 20 }
-                }
+                legend: { position: 'right', labels: { color: '#4a4a4a', padding: 20 } }
             }
         }
     });
 
-    // Render Task Chart (Doughnut)
+    // Task Chart
     const ctxTask = document.getElementById('taskChart').getContext('2d');
     charts.task = new Chart(ctxTask, {
         type: 'doughnut',
@@ -587,10 +643,7 @@ const updateDashboard = () => {
             maintainAspectRatio: false,
             cutout: '70%',
             plugins: {
-                legend: {
-                    position: 'right',
-                    labels: { color: '#4a4a4a', padding: 20 }
-                }
+                legend: { position: 'right', labels: { color: '#4a4a4a', padding: 20 } }
             }
         }
     });
@@ -599,10 +652,13 @@ const updateDashboard = () => {
 // ==========================================
 // Initialization
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initNavigation();
     initClients();
     initTasks();
     initTracker();
     initDashboard();
+
+    // GASから全データを読み込む
+    await loadAllData();
 });
