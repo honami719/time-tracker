@@ -1,0 +1,14 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
+
+# Local config (if you move GAS URL here later)
+config.local.js

@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Tracker - 工数管理ツール</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <i data-lucide="clock"></i>
+                <span>TimeTracker</span>
+            </div>
+
+            <ul class="nav-links">
+                <li class="active" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>ダッシュボード</span>
+                </li>
+                <li data-page="tracker">
+                    <i data-lucide="play-circle"></i>
+                    <span>作業ログ</span>
+                </li>
+                <li data-page="clients">
+                    <i data-lucide="users"></i>
+                    <span>クライアント管理</span>
+                </li>
+                <li data-page="tasks">
+                    <i data-lucide="check-square"></i>
+                    <span>タスク管理</span>
+                </li>
+            </ul>
+
+            <div class="user-profile">
+                <div class="avatar">
+                    <i data-lucide="user"></i>
+                </div>
+                <div class="user-info">
+                    <span class="user-name">WEB Marketer</span>
+                    <span class="user-role">Administrator</span>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard Page -->
+            <section id="dashboard" class="page active">
+                <header class="page-header">
+                    <div>
+                        <h1>ダッシュボード</h1>
+                        <p>作業時間の分析と概要</p>
+                    </div>
+                    <div class="header-actions">
+                        <div class="stat-card total-time-card">
+                            <div class="stat-icon"><i data-lucide="calendar-clock"></i></div>
+                            <div class="stat-info">
+                                <span class="stat-label">今月の総作業時間</span>
+                                <span class="stat-value" id="month-total-time">0h 0m</span>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="dashboard-grid">
+                    <div class="glass-card chart-container">
+                        <h3>日別作業時間</h3>
+                        <div class="canvas-wrapper">
+                            <canvas id="dailyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="glass-card chart-container">
+                        <h3>クライアント別作業時間</h3>
+                        <div class="canvas-wrapper">
+                            <canvas id="clientChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="glass-card chart-container">
+                        <h3>タスク別作業時間</h3>
+                        <div class="canvas-wrapper">
+                            <canvas id="taskChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Time Tracker Page -->
+            <section id="tracker" class="page">
+                <header class="page-header">
+                    <div>
+                        <h1>作業ログ</h1>
+                        <p>日々の作業時間を記録</p>
+                    </div>
+                    <div class="header-actions">
+                        <input type="date" id="log-date-filter" class="glass-input">
+                    </div>
+                </header>
+
+                <div class="glass-card entry-form-card">
+                    <h3>新規ログ入力</h3>
+                    <form id="log-form" class="entry-form">
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label>日付</label>
+                                <input type="date" id="log-date" required class="glass-input">
+                            </div>
+                            <div class="form-group flex-1.5">
+                                <label>クライアント</label>
+                                <select id="log-client" required class="glass-input">
+                                    <option value="" disabled selected>選択してください</option>
+                                    <!-- Clients will be loaded here -->
+                                </select>
+                            </div>
+                            <div class="form-group flex-1.5">
+                                <label>タスク</label>
+                                <select id="log-task" required class="glass-input">
+                                    <option value="" disabled selected>選択してください</option>
+                                    <!-- Tasks will be loaded here -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label>開始時間</label>
+                                <input type="time" id="log-start" required class="glass-input">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>終了時間</label>
+                                <input type="time" id="log-end" required class="glass-input">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>作業時間</label>
+                                <input type="text" id="log-duration" readonly class="glass-input read-only"
+                                    placeholder="自動計算">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-3">
+                                <label>メモ</label>
+                                <input type="text" id="log-memo" placeholder="作業内容のメモ..." class="glass-input">
+                            </div>
+                            <div class="form-group flex-1 form-actions">
+                                <button type="submit" class="btn btn-primary w-full">追加する</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="glass-card list-card mt-6">
+                    <h3>作業ログ一覧</h3>
+                    <div class="table-container">
+                        <table class="glass-table">
+                            <thead>
+                                <tr>
+                                    <th>クライアント</th>
+                                    <th>タスク</th>
+                                    <th>時間帯</th>
+                                    <th>作業時間</th>
+                                    <th>メモ</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logs-list">
+                                <!-- Logs will be loaded here -->
+                            </tbody>
+                        </table>
+                        <div id="logs-empty" class="empty-state hidden">
+                            <i data-lucide="inbox"></i>
+                            <p>この日の作業ログはありません</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Clients Page -->
+            <section id="clients" class="page">
+                <header class="page-header">
+                    <div>
+                        <h1>クライアント管理</h1>
+                        <p>顧客情報の登録・管理</p>
+                    </div>
+                </header>
+
+                <div class="layout-grid">
+                    <div class="glass-card side-form">
+                        <h3>新規クライアント登録</h3>
+                        <form id="client-form">
+                            <div class="form-group">
+                                <label>クライアント名</label>
+                                <input type="text" id="client-name" required class="glass-input"
+                                    placeholder="例: 株式会社ABC">
+                            </div>
+                            <div class="form-group">
+                                <label>メモ</label>
+                                <textarea id="client-memo" class="glass-input" rows="4"
+                                    placeholder="連絡先や担当者名など..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-full">登録する</button>
+                        </form>
+                    </div>
+
+                    <div class="glass-card main-list">
+                        <h3>クライアント一覧</h3>
+                        <div class="table-container">
+                            <table class="glass-table">
+                                <thead>
+                                    <tr>
+                                        <th>クライアント名</th>
+                                        <th>メモ</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="clients-list">
+                                    <!-- Clients will be loaded here -->
+                                </tbody>
+                            </table>
+                            <div id="clients-empty" class="empty-state hidden">
+                                <i data-lucide="users"></i>
+                                <p>クライアントが登録されていません</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tasks Page -->
+            <section id="tasks" class="page">
+                <header class="page-header">
+                    <div>
+                        <h1>タスク管理</h1>
+                        <p>作業項目の登録・管理</p>
+                    </div>
+                </header>
+
+                <div class="layout-grid">
+                    <div class="glass-card side-form">
+                        <h3>新規タスク登録</h3>
+                        <form id="task-form">
+                            <div class="form-group">
+                                <label>タスク名</label>
+                                <input type="text" id="task-name" required class="glass-input"
+                                    placeholder="例: LPワイヤー作成">
+                            </div>
+                            <div class="form-group">
+                                <label>カテゴリ</label>
+                                <select id="task-category" required class="glass-input">
+                                    <option value="" disabled selected>選択してください</option>
+                                    <option value="プロデュース">プロデュース</option>
+                                    <option value="マーケ">マーケティング</option>
+                                    <option value="サポート">サポート</option>
+                                    <option value="リサーチ">リサーチ・調査</option>
+                                    <option value="学習">学習・インプット</option>
+                                    <option value="運営">運営・事務</option>
+                                    <option value="その他">その他</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>メモ</label>
+                                <textarea id="task-memo" class="glass-input" rows="3"
+                                    placeholder="タスクの詳細など..."></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-full">登録する</button>
+                        </form>
+                    </div>
+
+                    <div class="glass-card main-list">
+                        <h3>タスク一覧</h3>
+                        <div class="table-container">
+                            <table class="glass-table">
+                                <thead>
+                                    <tr>
+                                        <th>タスク名</th>
+                                        <th>カテゴリ</th>
+                                        <th>メモ</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tasks-list">
+                                    <!-- Tasks will be loaded here -->
+                                </tbody>
+                            </table>
+                            <div id="tasks-empty" class="empty-state hidden">
+                                <i data-lucide="check-square"></i>
+                                <p>タスクが登録されていません</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Main Logic -->
+    <script src="app.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>
