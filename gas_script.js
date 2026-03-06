@@ -116,6 +116,14 @@ function doPost(e) {
                 result = deleteRow(ss, SHEETS.LOGS, postData.id);
                 break;
 
+            case 'updateClient':
+                result = updateRow(ss, SHEETS.CLIENTS, postData.id, postData.data);
+                break;
+
+            case 'updateTask':
+                result = updateRow(ss, SHEETS.TASKS, postData.id, postData.data);
+                break;
+
             default:
                 result = { status: 'error', message: 'Unknown action: ' + action };
         }
@@ -140,6 +148,30 @@ function addRow(ss, sheetName, headers, data) {
     sheet.appendRow(row);
 
     return { status: 'success', message: 'Added to ' + sheetName };
+}
+
+// IDで行を更新する
+function updateRow(ss, sheetName, id, data) {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return { status: 'error', message: 'Sheet not found: ' + sheetName };
+
+    const sheetData = sheet.getDataRange().getValues();
+    const headers = sheetData[0];
+    const idCol = headers.indexOf('id');
+    if (idCol === -1) return { status: 'error', message: 'id column not found' };
+
+    for (let i = 1; i < sheetData.length; i++) {
+        if (String(sheetData[i][idCol]) === String(id)) {
+            Object.keys(data).forEach(key => {
+                const col = headers.indexOf(key);
+                if (col !== -1) {
+                    sheet.getRange(i + 1, col + 1).setValue(data[key]);
+                }
+            });
+            return { status: 'success', message: 'Updated in ' + sheetName };
+        }
+    }
+    return { status: 'error', message: 'Row not found: ' + id };
 }
 
 // IDで行を削除する

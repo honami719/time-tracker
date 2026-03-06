@@ -221,10 +221,14 @@ const renderClients = () => {
 
     STATE.clients.forEach(client => {
         const tr = document.createElement('tr');
+        tr.id = `client-row-${client.id}`;
         tr.innerHTML = `
             <td><strong>${client.name}</strong></td>
             <td>${client.memo || '-'}</td>
             <td>
+                <button class="btn-icon" onclick="editClient('${client.id}')" title="編集">
+                    <i data-lucide="pencil"></i>
+                </button>
                 <button class="btn-icon danger" onclick="deleteClient('${client.id}')" title="削除">
                     <i data-lucide="trash-2"></i>
                 </button>
@@ -234,6 +238,43 @@ const renderClients = () => {
     });
 
     lucide.createIcons();
+};
+
+// インライン編集モードに切り替え
+window.editClient = (id) => {
+    const client = STATE.clients.find(c => c.id === id);
+    if (!client) return;
+    const tr = document.getElementById(`client-row-${id}`);
+    tr.innerHTML = `
+        <td><input id="edit-client-name-${id}" class="glass-input" value="${client.name}" style="width:100%"></td>
+        <td><input id="edit-client-memo-${id}" class="glass-input" value="${client.memo || ''}" style="width:100%"></td>
+        <td>
+            <button class="btn-icon" onclick="saveClient('${id}')" title="保存" style="color:var(--primary-color)">
+                <i data-lucide="check"></i>
+            </button>
+            <button class="btn-icon" onclick="renderClients()" title="キャンセル">
+                <i data-lucide="x"></i>
+            </button>
+        </td>
+    `;
+    lucide.createIcons();
+};
+
+window.saveClient = async (id) => {
+    const name = document.getElementById(`edit-client-name-${id}`).value.trim();
+    const memo = document.getElementById(`edit-client-memo-${id}`).value.trim();
+    if (!name) { alert('クライアント名を入力してください'); return; }
+
+    const client = STATE.clients.find(c => c.id === id);
+    client.name = name;
+    client.memo = memo;
+    renderClients();
+    updateTrackerDropdowns();
+    try {
+        await gasPost('updateClient', { id, data: { name, memo } });
+    } catch (err) {
+        console.error('クライアント更新エラー:', err);
+    }
 };
 
 window.deleteClient = async (id) => {
@@ -309,11 +350,15 @@ const renderTasks = () => {
 
     STATE.tasks.forEach(task => {
         const tr = document.createElement('tr');
+        tr.id = `task-row-${task.id}`;
         tr.innerHTML = `
             <td><strong>${task.name}</strong></td>
             <td><span class="badge">${task.category}</span></td>
             <td>${task.memo || '-'}</td>
             <td>
+                <button class="btn-icon" onclick="editTask('${task.id}')" title="編集">
+                    <i data-lucide="pencil"></i>
+                </button>
                 <button class="btn-icon danger" onclick="deleteTask('${task.id}')" title="削除">
                     <i data-lucide="trash-2"></i>
                 </button>
@@ -323,6 +368,47 @@ const renderTasks = () => {
     });
 
     lucide.createIcons();
+};
+
+window.editTask = (id) => {
+    const task = STATE.tasks.find(t => t.id === id);
+    if (!task) return;
+    const categoryOptions = ['プロデュース', 'マーケ', 'サポート', 'リサーチ', '学習', '運営', 'その他']
+        .map(c => `<option value="${c}" ${c === task.category ? 'selected' : ''}>${c}</option>`).join('');
+    const tr = document.getElementById(`task-row-${id}`);
+    tr.innerHTML = `
+        <td><input id="edit-task-name-${id}" class="glass-input" value="${task.name}" style="width:100%"></td>
+        <td><select id="edit-task-cat-${id}" class="glass-input">${categoryOptions}</select></td>
+        <td><input id="edit-task-memo-${id}" class="glass-input" value="${task.memo || ''}" style="width:100%"></td>
+        <td>
+            <button class="btn-icon" onclick="saveTask('${id}')" title="保存" style="color:var(--primary-color)">
+                <i data-lucide="check"></i>
+            </button>
+            <button class="btn-icon" onclick="renderTasks()" title="キャンセル">
+                <i data-lucide="x"></i>
+            </button>
+        </td>
+    `;
+    lucide.createIcons();
+};
+
+window.saveTask = async (id) => {
+    const name = document.getElementById(`edit-task-name-${id}`).value.trim();
+    const category = document.getElementById(`edit-task-cat-${id}`).value;
+    const memo = document.getElementById(`edit-task-memo-${id}`).value.trim();
+    if (!name) { alert('タスク名を入力してください'); return; }
+
+    const task = STATE.tasks.find(t => t.id === id);
+    task.name = name;
+    task.category = category;
+    task.memo = memo;
+    renderTasks();
+    updateTrackerDropdowns();
+    try {
+        await gasPost('updateTask', { id, data: { name, category, memo } });
+    } catch (err) {
+        console.error('タスク更新エラー:', err);
+    }
 };
 
 window.deleteTask = async (id) => {
