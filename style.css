@@ -269,6 +269,8 @@ body {
 /* Form Elements */
 .glass-input {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     background: rgba(255, 255, 255, 0.6);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);
@@ -278,6 +280,7 @@ body {
     font-size: 0.95rem;
     transition: var(--transition);
     outline: none;
+    box-sizing: border-box;
 }
 
 .glass-input:focus {
@@ -317,6 +320,7 @@ select.glass-input option {
 
 .form-group {
     margin-bottom: 20px;
+    min-width: 0;
 }
 
 .form-group label {
