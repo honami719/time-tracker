@@ -69,6 +69,7 @@ body {
     padding: 24px;
     box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.2);
     transition: var(--transition);
+    min-width: 0;
 }
 
 .glass-card:hover {
@@ -180,6 +181,7 @@ body {
     margin-left: var(--sidebar-width);
     padding: 40px;
     max-width: 1440px;
+    min-width: 0;
 }
 
 .page {
@@ -400,6 +402,8 @@ select.glass-input option {
 /* Tables */
 .table-container {
     overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
 }
 
 .glass-table {
@@ -582,6 +586,7 @@ select.glass-input option {
 }
 
 @media (max-width: 768px) {
+
     /* Mobile Header */
     .mobile-header {
         display: flex;
@@ -659,7 +664,8 @@ select.glass-input option {
         backdrop-filter: blur(16px);
         border-top: 1px solid var(--glass-border);
         z-index: 101;
-        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); /* iOS safe area */
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+        /* iOS safe area */
     }
 
     .bottom-nav ul {
