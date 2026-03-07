@@ -494,6 +494,10 @@ select.glass-input option {
     opacity: 0.5;
 }
 
+.mt-6 {
+    margin-top: 24px;
+}
+
 .hidden {
     display: none !important;
 }
@@ -609,7 +613,7 @@ select.glass-input option {
     /* Main content: add top padding for header, bottom for nav */
     .main-content {
         margin-left: 0;
-        padding: 80px 16px 80px;
+        padding: 80px 16px 140px;
     }
 
     /* Dashboard grid: single column */
@@ -655,7 +659,7 @@ select.glass-input option {
         backdrop-filter: blur(16px);
         border-top: 1px solid var(--glass-border);
         z-index: 101;
-        padding-bottom: env(safe-area-inset-bottom, 0); /* iOS safe area */
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); /* iOS safe area */
     }
 
     .bottom-nav ul {

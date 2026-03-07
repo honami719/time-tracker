@@ -111,10 +111,20 @@ const loadAllData = async () => {
         const data = await gasGet();
         STATE.clients = data.clients || [];
         STATE.tasks = data.tasks || [];
-        STATE.logs = (data.logs || []).map(log => ({
-            ...log,
-            duration: parseInt(log.duration, 10) || 0
-        }));
+        STATE.logs = (data.logs || []).map(log => {
+            let formattedDate = log.date;
+            if (formattedDate && typeof formattedDate === 'string' && formattedDate.includes('T')) {
+                const d = new Date(formattedDate);
+                if (!isNaN(d.getTime())) {
+                    formattedDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                }
+            }
+            return {
+                ...log,
+                date: formattedDate,
+                duration: parseInt(log.duration, 10) || 0
+            };
+        });
 
         // ソート
         STATE.logs.sort((a, b) => {
