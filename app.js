@@ -111,6 +111,17 @@ const loadAllData = async () => {
         const data = await gasGet();
         STATE.clients = data.clients || [];
         STATE.tasks = data.tasks || [];
+        const formatTimeFromGAS = (timeStr) => {
+            if (!timeStr) return '';
+            if (typeof timeStr === 'string' && timeStr.includes('T')) {
+                const d = new Date(timeStr);
+                if (!isNaN(d.getTime())) {
+                    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                }
+            }
+            return timeStr;
+        };
+
         STATE.logs = (data.logs || []).map(log => {
             let formattedDate = log.date;
             if (formattedDate && typeof formattedDate === 'string' && formattedDate.includes('T')) {
@@ -122,6 +133,8 @@ const loadAllData = async () => {
             return {
                 ...log,
                 date: formattedDate,
+                start: formatTimeFromGAS(log.start),
+                end: formatTimeFromGAS(log.end),
                 duration: parseInt(log.duration, 10) || 0
             };
         });
