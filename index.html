@@ -22,9 +22,25 @@
 </head>
 
 <body>
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="メニューを開く">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="mobile-logo">
+            <i data-lucide="clock"></i>
+            <span>TimeTracker</span>
+        </div>
+    </header>
+
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <div class="app-container">
         <!-- Sidebar Navigation -->
-        <nav class="sidebar">
+        <nav class="sidebar" id="sidebar">
             <div class="logo">
                 <i data-lucide="clock"></i>
                 <span>TimeTracker</span>
@@ -309,6 +325,28 @@
             </section>
         </main>
     </div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav" id="bottom-nav">
+        <ul>
+            <li class="active" data-page="dashboard">
+                <i data-lucide="layout-dashboard"></i>
+                <span>ダッシュボード</span>
+            </li>
+            <li data-page="tracker">
+                <i data-lucide="play-circle"></i>
+                <span>作業ログ</span>
+            </li>
+            <li data-page="clients">
+                <i data-lucide="users"></i>
+                <span>クライアント</span>
+            </li>
+            <li data-page="tasks">
+                <i data-lucide="check-square"></i>
+                <span>タスク</span>
+            </li>
+        </ul>
+    </nav>
 
     <!-- Main Logic -->
     <script src="app.js"></script>

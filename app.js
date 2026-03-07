@@ -140,27 +140,66 @@ const loadAllData = async () => {
 // ==========================================
 // Navigation Logic
 // ==========================================
-const initNavigation = () => {
-    const navItems = document.querySelectorAll('.nav-links li');
+
+// ページ切り替えのコア処理（サイドバー・ボトムナビ両方から呼ばれる）
+const navigateTo = (pageId) => {
     const pages = document.querySelectorAll('.page');
+    pages.forEach(page => page.classList.remove('active'));
+    document.getElementById(pageId).classList.add('active');
 
-    navItems.forEach(item => {
+    // サイドバーのアクティブ更新
+    document.querySelectorAll('.nav-links li').forEach(nav => {
+        nav.classList.toggle('active', nav.getAttribute('data-page') === pageId);
+    });
+
+    // ボトムナビのアクティブ更新
+    document.querySelectorAll('.bottom-nav li').forEach(nav => {
+        nav.classList.toggle('active', nav.getAttribute('data-page') === pageId);
+    });
+
+    if (pageId === 'dashboard') {
+        updateDashboard();
+    } else if (pageId === 'tracker') {
+        updateTrackerDropdowns();
+        renderLogs();
+    }
+};
+
+const closeSidebar = () => {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
+    document.getElementById('hamburger-btn').classList.remove('open');
+};
+
+const initNavigation = () => {
+    // サイドバーナビ
+    document.querySelectorAll('.nav-links li').forEach(item => {
         item.addEventListener('click', () => {
-            navItems.forEach(nav => nav.classList.remove('active'));
-            item.classList.add('active');
-
-            const pageId = item.getAttribute('data-page');
-            pages.forEach(page => page.classList.remove('active'));
-            document.getElementById(pageId).classList.add('active');
-
-            if (pageId === 'dashboard') {
-                updateDashboard();
-            } else if (pageId === 'tracker') {
-                updateTrackerDropdowns();
-                renderLogs();
-            }
+            navigateTo(item.getAttribute('data-page'));
+            closeSidebar(); // モバイルでは選択後サイドバーを閉じる
         });
     });
+
+    // ボトムナビ（スマホ専用）
+    document.querySelectorAll('.bottom-nav li').forEach(item => {
+        item.addEventListener('click', () => {
+            navigateTo(item.getAttribute('data-page'));
+        });
+    });
+
+    // ハンバーガーボタン
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    hamburgerBtn.addEventListener('click', () => {
+        const isOpen = sidebar.classList.toggle('open');
+        overlay.classList.toggle('active', isOpen);
+        hamburgerBtn.classList.toggle('open', isOpen);
+    });
+
+    // オーバーレイをタップしてサイドバーを閉じる
+    overlay.addEventListener('click', closeSidebar);
 };
 
 // ==========================================
