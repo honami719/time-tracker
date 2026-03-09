@@ -448,6 +448,11 @@ select.glass-input option {
     border: 1px solid rgba(123, 145, 118, 0.3);
 }
 
+/* Utilities */
+.mt-6 {
+    margin-top: 24px;
+}
+
 /* Layout Grids */
 .dashboard-grid {
     display: grid;
@@ -622,7 +627,11 @@ select.glass-input option {
     /* Main content: add top padding for header, bottom for nav */
     .main-content {
         margin-left: 0;
-        padding: 80px 16px 140px;
+        padding: 80px 10px 140px;
+        /* width: 100vw はスクロールバー幅によりはみ出すため 100% に変更 */
+        width: 100%;
+        overflow-x: hidden;
+        box-sizing: border-box;
     }
 
     /* Dashboard grid: single column */
@@ -637,24 +646,29 @@ select.glass-input option {
     /* Form rows: stack vertically */
     .form-row {
         flex-direction: column;
-        gap: 0;
+        gap: 16px;
+        /* スマホでは縦方向の余白を持たせる */
     }
 
-    /* Page header: stack vertically on small screens */
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 24px;
-    }
-
-    .page-header h1 {
-        font-size: 1.5rem;
-    }
-
-    /* Stat card: full width */
-    .stat-card {
+    /* .glass-card や .glass-input のはみ出し防止 */
+    .glass-card {
+        padding: 16px;
         width: 100%;
+        max-width: 100%;
+        /* calc(100vw - 20px) でははみ出すため 100% に修正 */
+        box-sizing: border-box;
+    }
+
+    .form-group {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .glass-input {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     /* Bottom Navigation */
@@ -710,7 +724,18 @@ select.glass-input option {
     }
 
     /* Hide sidebar user profile on very small screens to avoid overflow */
-    .glass-card {
-        padding: 16px;
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+    }
+
+    .stat-card {
+        width: 100%;
     }
 }
