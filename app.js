@@ -169,6 +169,8 @@ const loadAllData = async () => {
 
 // ページ切り替えのコア処理（サイドバー・ボトムナビ両方から呼ばれる）
 const navigateTo = (pageId) => {
+    localStorage.setItem('activePage', pageId);
+
     const pages = document.querySelectorAll('.page');
     pages.forEach(page => page.classList.remove('active'));
     document.getElementById(pageId).classList.add('active');
@@ -863,6 +865,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initTasks();
     initTracker();
     initDashboard();
+
+    // 最後に開いていたページを復元（デフォルトはダッシュボード）
+    const savedPage = localStorage.getItem('activePage') || 'dashboard';
+    navigateTo(savedPage);
 
     // GASから全データを読み込む
     await loadAllData();
