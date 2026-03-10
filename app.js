@@ -152,6 +152,9 @@ const loadAllData = async () => {
         updateTrackerDropdowns();
         updateDashboard();
 
+        // オートセーブの復元
+        restoreDraft();
+
     } catch (err) {
         console.error('データ読み込みエラー:', err);
         alert('データの読み込みに失敗しました。ページを再読み込みしてください。\n' + err.message);
@@ -488,12 +491,54 @@ window.deleteTask = async (id) => {
 // ==========================================
 // Time Tracker Logic
 // ==========================================
+const DRAFT_KEY = 'trackerDraft';
+
+const saveDraft = () => {
+    const draft = {
+        date: document.getElementById('log-date').value,
+        clientId: document.getElementById('log-client').value,
+        taskId: document.getElementById('log-task').value,
+        start: document.getElementById('log-start').value,
+        end: document.getElementById('log-end').value,
+        memo: document.getElementById('log-memo').value
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+};
+
+const restoreDraft = () => {
+    const draftStr = localStorage.getItem(DRAFT_KEY);
+    if (!draftStr) return;
+
+    try {
+        const draft = JSON.parse(draftStr);
+        if (draft.date) document.getElementById('log-date').value = draft.date;
+        if (draft.clientId) document.getElementById('log-client').value = draft.clientId;
+        if (draft.taskId) document.getElementById('log-task').value = draft.taskId;
+        if (draft.start) document.getElementById('log-start').value = draft.start;
+        if (draft.end) document.getElementById('log-end').value = draft.end;
+        if (draft.memo) document.getElementById('log-memo').value = draft.memo;
+
+        // 作業時間の再計算
+        const startInput = document.getElementById('log-start');
+        const endInput = document.getElementById('log-end');
+        if (startInput.value && endInput.value) {
+            const minutes = calculateMinutes(startInput.value, endInput.value);
+            document.getElementById('log-duration').value = formatDuration(minutes);
+        }
+    } catch (e) {
+        console.error('Draft restore error:', e);
+    }
+};
+
 const initTracker = () => {
     const dateInput = document.getElementById('log-date');
     const filterInput = document.getElementById('log-date-filter');
     const startInput = document.getElementById('log-start');
     const endInput = document.getElementById('log-end');
     const durationInput = document.getElementById('log-duration');
+    const clientInput = document.getElementById('log-client');
+    const taskInput = document.getElementById('log-task');
+    const memoInput = document.getElementById('log-memo');
     const form = document.getElementById('log-form');
 
     const today = getToday();
@@ -511,6 +556,15 @@ const initTracker = () => {
 
     startInput.addEventListener('change', updateDuration);
     endInput.addEventListener('change', updateDuration);
+
+    // オートセーブのイベントリスナー
+    const triggerSave = () => saveDraft();
+    dateInput.addEventListener('change', triggerSave);
+    clientInput.addEventListener('change', triggerSave);
+    taskInput.addEventListener('change', triggerSave);
+    startInput.addEventListener('input', triggerSave);
+    endInput.addEventListener('input', triggerSave);
+    memoInput.addEventListener('input', triggerSave);
 
     filterInput.addEventListener('change', () => {
         dateInput.value = filterInput.value;
@@ -556,6 +610,9 @@ const initTracker = () => {
         endInput.value = '';
         durationInput.value = '';
         document.getElementById('log-memo').value = '';
+
+        // 送信後に下書き状態を保存（次の入力用）
+        saveDraft();
 
         renderLogs();
 
